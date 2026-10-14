@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>今日 · 极简待办</title>
+
+<!-- PWA / iOS 主屏幕安装 -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#FAFAF8" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="今日待办" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+
+<style>
+  :root{
+    --bg:#FAFAF8; --card:#FFFFFF; --ink:#1B1B1F; --ink-2:#8A8A93;
+    --line:#ECECE6; --accent:#5B5BD6; --accent-soft:#EEEEFB; --danger:#E5544B;
+    --radius:16px; --ease:cubic-bezier(.22,1,.36,1);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh; min-height:100dvh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:0 20px 60px;
+  }
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:999}
+  button{font-family:inherit}
+
+  .app{width:100%;max-width:540px;margin-top:8vh}
+
+  /* ---------- Header ---------- */
+  .top{display:flex;align-items:flex-end;justify-content:space-between}
+  .date{font-size:13px;letter-spacing:.14em;color:var(--ink-2);font-weight:600}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:2px 0 0}
+  .tools{display:flex;gap:6px}
+  .icon-btn{width:34px;height:34px;border:0;border-radius:10px;background:transparent;color:var(--ink-2);
+    cursor:pointer;display:grid;place-items:center;transition:.18s;font-size:15px}
+  .icon-btn:hover{background:var(--line);color:var(--ink)}
+  .icon-btn.off{opacity:.45}
+
+  /* ---------- Progress ---------- */
+  .bar{height:4px;background:var(--line);border-radius:99px;overflow:hidden;margin:18px 0 6px}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .6s var(--ease)}
+  .meta{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-2);margin-bottom:22px;gap:10px}
+  .meta b{color:var(--ink);font-weight:600}
+
+  /* ---------- Input ---------- */
+  .field{display:flex;align-items:center;gap:10px;background:var(--card);
+    border:1.5px solid var(--line);border-radius:var(--radius);padding:14px 16px;
+    transition:.22s var(--ease);margin-bottom:24px}
+  .field:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .field .plus{color:var(--ink-2);font-size:19px;line-height:1}
+  .field input{flex:1;border:0;outline:0;font:inherit;font-size:15.5px;background:transparent;color:var(--ink)}
+  .field input::placeholder{color:#BDBDC4}
+
+  /* ---------- Filters ---------- */
+  .filters{display:flex;gap:18px;margin-bottom:14px;padding:0 2px}
+  .filters button{border:0;background:transparent;font:inherit;font-size:13px;color:var(--ink-2);
+    cursor:pointer;padding:2px 0;position:relative;transition:.2s}
+  .filters button.on{color:var(--ink);font-weight:600}
+  .filters button.on::after{content:"";position:absolute;left:0;right:0;bottom:-3px;height:2px;
+    background:var(--accent);border-radius:2px}
+
+  /* ---------- List ---------- */
+  ul{list-style:none;margin:0;padding:0}
+  .item{display:flex;align-items:center;gap:14px;background:var(--card);
+    border:1.5px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px;margin-bottom:10px;animation:in .45s var(--ease) both}
+  @keyframes in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+  .item.out{animation:out .32s var(--ease) forwards}
+  @keyframes out{to{opacity:0;transform:translateX(28px) scale(.96);height:0;margin:0;padding:0;border-width:0}}
+  .item.done{background:transparent;border-color:transparent}
+
+  .check{flex:none;width:26px;height:26px;border-radius:50%;border:1.5px solid #D6D6CE;
+    background:var(--card);cursor:pointer;position:relative;transition:.25s var(--ease);
+    display:grid;place-items:center}
+  .check:hover{border-color:var(--accent);transform:scale(1.08)}
+  .check svg{width:13px;height:13px;overflow:visible}
+  .check path{fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;
+    stroke-dasharray:18;stroke-dashoffset:18;transition:stroke-dashoffset .3s var(--ease) .05s}
+  .item.done .check{background:var(--accent);border-color:var(--accent)}
+  .item.done .check path{stroke-dashoffset:0}
+
+  .body{flex:1;min-width:0}
+  .txt{font-size:15.5px;line-height:1.45;word-break:break-word;transition:color .3s,opacity .3s}
+  .item.done .txt{color:var(--ink-2);text-decoration:line-through;text-decoration-color:#C9C9C0}
+  .time{display:none;font-size:12px;color:var(--ink-2);margin-top:3px}
+  .item.done .time{display:flex;align-items:center;gap:5px}
+  .time b{color:var(--accent);font-weight:600}
+  .item .del{flex:none;border:0;background:transparent;color:#D6D6CE;cursor:pointer;
+    font-size:18px;line-height:1;padding:4px 6px;border-radius:8px;transition:.18s;opacity:0}
+  .item:hover .del{opacity:1}
+  .item .del:hover{color:var(--danger);background:#FDEEEE}
+
+  .empty{text-align:center;padding:48px 0;color:#BDBDC4;font-size:14px;animation:in .5s var(--ease) both}
+  .empty .e{font-size:34px;display:block;margin-bottom:10px;opacity:.85}
+  .restore{margin-top:14px;border:1.5px solid var(--line);background:var(--card);color:var(--accent);
+    font-size:12.5px;padding:8px 16px;border-radius:999px;cursor:pointer;transition:.2s}
+  .restore:hover{border-color:var(--accent);background:var(--accent-soft)}
+
+  .foot{display:flex;justify-content:space-between;align-items:center;margin-top:22px;
+    font-size:12.5px;color:var(--ink-2);gap:10px;flex-wrap:wrap}
+  .foot .grp{display:flex;gap:14px;align-items:center}
+  .foot button{border:0;background:transparent;font-size:12.5px;color:var(--ink-2);cursor:pointer;transition:.2s;padding:0}
+  .foot button:hover{color:var(--accent)}
+  .foot button.warn:hover{color:var(--danger)}
+  kbd{font-family:inherit;font-size:11px;background:var(--card);border:1px solid var(--line);
+    border-radius:5px;padding:1px 5px}
+
+  /* ---------- 保存提示 ---------- */
+  #toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);
+    background:var(--ink);color:#fff;font-size:12.5px;padding:8px 16px;border-radius:999px;
+    opacity:0;pointer-events:none;transition:.3s var(--ease);z-index:1001;white-space:nowrap}
+  #toast.on{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- 用时弹窗 ---------- */
+  .modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:24px;
+    background:rgba(27,27,31,.34);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;transition:opacity .25s var(--ease)}
+  .modal.on{opacity:1;pointer-events:auto}
+  .sheet{width:100%;max-width:360px;background:var(--card);border-radius:26px;padding:26px 24px 22px;
+    text-align:center;box-shadow:0 24px 60px rgba(27,27,31,.24);
+    transform:translateY(16px) scale(.97);transition:.3s var(--ease)}
+  .modal.on .sheet{transform:none}
+  .sheet .se{font-size:42px;line-height:1;animation:bob .5s var(--ease)}
+  @keyframes bob{from{transform:scale(.5) rotate(-12deg)}to{transform:none}}
+  .sheet h2{font-size:19px;margin:12px 0 2px}
+  .sheet .tname{font-size:13px;color:var(--ink-2);margin:0 0 18px;word-break:break-word}
+  .sheet .lbl{font-size:13px;color:var(--ink-2);display:block;text-align:left;margin-bottom:9px}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+  .chips button{border:1.5px solid var(--line);background:var(--bg);color:var(--ink);
+    font-size:13px;padding:7px 13px;border-radius:999px;cursor:pointer;transition:.18s}
+  .chips button:hover{border-color:var(--accent)}
+  .chips button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .numrow{display:flex;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--line);
+    border-radius:14px;padding:11px 14px;margin-bottom:18px;transition:.2s}
+  .numrow:focus-within{border-color:var(--accent)}
+  .numrow input{flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:15px;
+    color:var(--ink);text-align:center;-moz-appearance:textfield}
+  .numrow input::-webkit-outer-spin-button,.numrow input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .numrow span{font-size:13px;color:var(--ink-2)}
+  .sbtns{display:flex;gap:10px}
+  .sbtns button{flex:1;border:0;border-radius:14px;padding:13px 0;font-size:14.5px;cursor:pointer;transition:.18s}
+  .sbtns .ghost{background:var(--bg);color:var(--ink-2)}
+  .sbtns .ghost:hover{background:var(--line);color:var(--ink)}
+  .sbtns .primary{background:var(--accent);color:#fff;font-weight:600}
+  .sbtns .primary:hover{filter:brightness(1.07)}
+
+  @media(max-width:420px){
+    h1{font-size:26px}
+    .app{margin-top:5vh}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="fx"></canvas>
+
+<main class="app">
+  <div class="top">
+    <div>
+      <div class="date" id="date"></div>
+      <h1 id="greeting">今天要做</h1>
+    </div>
+    <div class="tools">
+      <button class="icon-btn" id="soundBtn" title="音效开关">🔊</button>
+      <button class="icon-btn" id="clearBtn" title="清除已完成">🧹</button>
+    </div>
+  </div>
+
+  <div class="bar"><i id="progress"></i></div>
+  <div class="meta">
+    <span id="count">0 / 0 已完成</span>
+    <span id="totalTime"></span>
+  </div>
+
+  <div class="field">
+    <span class="plus">+</span>
+    <input id="input" type="text" placeholder="想做点什么？" maxlength="120" autocomplete="off" />
+  </div>
+
+  <div class="filters">
+    <button data-f="all" class="on">全部</button>
+    <button data-f="active">进行中</button>
+    <button data-f="done">已完成</button>
+  </div>
+
+  <ul id="list"></ul>
+  <div class="empty" id="empty" style="display:none">
+    <span class="e">🎈</span>
+    <span id="emptyText">还没有任务，从上面添加一个吧</span>
+    <div><button class="restore" id="restoreBtn" style="display:none">↩ 恢复上次的备份</button></div>
+  </div>
+
+  <div class="foot">
+    <span>按 <kbd>Enter</kbd> 添加 · 双击任务可删除</span>
+    <span class="grp">
+      <button id="exportBtn">导出备份</button>
+      <button id="importBtn">导入备份</button>
+      <button id="wipeBtn" class="warn">清空全部</button>
+    </span>
+  </div>
+</main>
+
+<div id="toast">已保存</div>
+
+<!-- 完成用时弹窗 -->
+<div class="modal" id="modal">
+  <div class="sheet">
+    <div class="se">🎉</div>
+    <h2>任务完成啦！</h2>
+    <p class="tname" id="mTask"></p>
+    <span class="lbl">这次花了多长时间？</span>
+    <div class="chips" id="chips">
+      <button data-m="5">5 分</button>
+      <button data-m="10">10 分</button>
+      <button data-m="15">15 分</button>
+      <button data-m="30">30 分</button>
+      <button data-m="60">1 小时</button>
+      <button data-m="120">2 小时+</button>
+    </div>
+    <div class="numrow">
+      <input id="mMin" type="number" min="0" max="100000" placeholder="自定义" inputmode="numeric" />
+      <span>分钟</span>
+    </div>
+    <div class="sbtns">
+      <button class="ghost" id="mSkip">先不记</button>
+      <button class="primary" id="mOk">确定，撒花 🎉</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".json,application/json" hidden />
+
+<script>
+/* =========================================================
+   1. 持久化：IndexedDB（本地数据库，非缓存）+ 自动每日备份
+   ========================================================= */
+const DB_NAME = 'mini-todo', DB_VER = 1, ST_TODO = 'todos', ST_BAK = 'backups';
+const LS_KEY = 'mini-todo-v1';          // 仅作为 IDB 不可用时的降级方案
+let db = null;
+
+function openDB(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if(!d.objectStoreNames.contains(ST_TODO)) d.createObjectStore(ST_TODO, {keyPath:'id'});
+      if(!d.objectStoreNames.contains(ST_BAK)) d.createObjectStore(ST_BAK, {keyPath:'date'});
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function idbOp(store, mode, fn){
+  if(!db) return Promise.reject('no-db');
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, mode), os = tx.objectStore(store);
+    const rq = fn(os);
+    tx.oncomplete = () => res(rq && rq.result);
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+let state = { todos: [], wipedAt: null };
+let persistTimer = null;
+const LS_WIPE = 'mini-todo-wipedAt';
+state.wipedAt = Number(localStorage.getItem(LS_WIPE) || 0) || null;
+
+async function load(){
+  try{
+    db = await openDB();
+    const all = await idbOp(ST_TODO, 'readonly', os => os.getAll());
+    if(all && all.length){
+      state.todos = all;
+    }else{
+      // 首次：尝试从 localStorage 迁移（旧版本）
+      const old = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      if(old && old.length){
+        state.todos = old;
+        await saveNow();
+        localStorage.removeItem(LS_KEY);   // 迁移完成即清除，避免误恢复已删除的任务
+      }
+    }
+    // 每日自动备份
+    const today = new Date().toISOString().slice(0,10);
+    const has = await idbOp(ST_BAK, 'readonly', os => os.get(today));
+    if(!has){
+      await idbOp(ST_BAK, 'readwrite', os => os.put({date:today, ts:Date.now(), todos:state.todos}));
+      await pruneBackups();
+    }
+  }catch(e){
+    console.warn('IndexedDB 不可用，降级 localStorage', e);
+    db = null;
+    state.todos = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+  }
+}
+async function pruneBackups(){
+  const all = await idbOp(ST_BAK, 'readonly', os => os.getAll()) || [];
+  all.sort((a,b)=>a.date<b.date?1:-1);
+  const drop = all.slice(14);                    // 只保留最近 14 天
+  for(const d of drop) await idbOp(ST_BAK, 'readwrite', os => os.delete(d.date));
+}
+async function saveNow(){
+  try{
+    if(db){
+      await idbOp(ST_TODO, 'readwrite', os => os.clear());
+      await idbOp(ST_TODO, 'readwrite', os => state.todos.forEach(t => os.put(t)));
+    }else{
+      localStorage.setItem(LS_KEY, JSON.stringify(state.todos));
+    }
+    flashSaved();
+  }catch(e){ console.warn(e); }
+}
+function persist(){
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(saveNow, 120);        // 防抖，避免连点重复写库
+}
+function flashSaved(){
+  // 节流：最多 8 秒提示一次，避免连点时反复闪
+  if(Date.now() - (flashSaved._t || 0) < 8000) return;
+  flashSaved._t = Date.now();
+  const t = document.getElementById('toast');
+  t.textContent = '已自动保存 ✓';
+  t.classList.add('on');
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove('on'), 1400);
+}
+
+/* =========================================================
+   2. 状态
+   ========================================================= */
+let filter = 'all';
+let soundOn = localStorage.getItem('mini-todo-sound') !== '0';
+
+/* =========================================================
+   3. 音效（Web Audio 实时合成，无外部音频文件）
+   ========================================================= */
+let ac = null;
+const ctx = () => {
+  if(!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+  if(ac.state === 'suspended') ac.resume();
+  return ac;
+};
+function tone(freq, delay, dur, type='triangle', vol=.18){
+  if(!soundOn) return;
+  const c = ctx(), t = c.currentTime + delay;
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + .012);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(c.destination);
+  o.start(t); o.stop(t + dur + .05);
+}
+const SFX = {
+  complete(){ [523.25,659.25,783.99,1046.50].forEach((f,i)=>tone(f, i*.065, .5)); tone(1318.51,.30,.7,'sine',.09); },
+  undo(){ [440,392,329.63].forEach((f,i)=>tone(f, i*.06, .3, 'sine', .12)); },
+  add(){ tone(880, 0, .09, 'sine', .10); },
+  del(){ [300,200,140].forEach((f,i)=>tone(f, i*.045, .18, 'sawtooth', .07)); },
+  tick(){ tone(1200, 0, .04, 'sine', .05); }
+};
+
+/* =========================================================
+   4. 特效（Canvas 粒子）
+   ========================================================= */
+const cv = document.getElementById('fx'), c2 = cv.getContext('2d');
+let P = [], raf = null;
+const resize = () => { cv.width = innerWidth*devicePixelRatio; cv.height = innerHeight*devicePixelRatio;
+  c2.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0); };
+addEventListener('resize', resize); resize();
+
+const COLORS = ['#5B5BD6','#F5A524','#F04438','#12B76A','#EE46BC','#3E90FA','#FDB022'];
+
+function burst(x, y){
+  for(let i=0;i<48;i++){
+    const a = (-Math.PI/2) + (Math.random()-.5)*2.4, sp = 4 + Math.random()*9;
+    P.push({ x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+      w:4+Math.random()*7, h:4+Math.random()*8, r:Math.random()*Math.PI, vr:(Math.random()-.5)*.35,
+      g:.16+Math.random()*.12, drag:.986, life:1, decay:.012+Math.random()*.012,
+      color:COLORS[Math.random()*COLORS.length|0], round:Math.random()<.3 });
+  }
+  P.push({ring:true, x, y, r:4, life:1, color:'#5B5BD6'});
+  for(let i=0;i<6;i++){
+    const a = Math.random()*Math.PI*2;
+    P.push({star:true, x, y, vx:Math.cos(a)*3, vy:Math.sin(a)*3, life:1, decay:.04, size:5+Math.random()*4});
+  }
+  if(!raf) raf = requestAnimationFrame(loop);
+}
+function loop(){
+  c2.clearRect(0,0,cv.width,cv.height);
+  P = P.filter(p => {
+    p.life -= p.decay;
+    if(p.life <= 0) return false;
+    if(p.ring){
+      p.r += 4.2; c2.globalAlpha = p.life*.55; c2.lineWidth = 2.5*p.life;
+      c2.strokeStyle = p.color; c2.beginPath(); c2.arc(p.x,p.y,p.r,0,7); c2.stroke();
+      c2.globalAlpha = 1; return true;
+    }
+    if(p.star){
+      p.x += p.vx; p.y += p.vy; p.vx *= .94; p.vy *= .94;
+      c2.globalAlpha = p.life; c2.fillStyle = '#FDB022';
+      drawStar(p.x, p.y, p.size*p.life); c2.globalAlpha = 1; return true;
+    }
+    p.vx *= p.drag; p.vy = p.vy*p.drag + p.g;
+    p.x += p.vx; p.y += p.vy; p.r += p.vr;
+    c2.save(); c2.translate(p.x,p.y); c2.rotate(p.r);
+    c2.globalAlpha = Math.min(1, p.life*1.4); c2.fillStyle = p.color;
+    if(p.round){ c2.beginPath(); c2.arc(0,0,p.w/2,0,7); c2.fill(); }
+    else c2.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+    c2.restore(); c2.globalAlpha = 1;
+    return true;
+  });
+  if(P.length) raf = requestAnimationFrame(loop);
+  else { c2.clearRect(0,0,cv.width,cv.height); raf = null; }
+}
+function drawStar(cx, cy, r){
+  c2.beginPath();
+  for(let i=0;i<5;i++){ c2.lineTo(cx, cy-r); c2.rotate(Math.PI/5); c2.lineTo(cx, cy+r*.42); c2.rotate(Math.PI/5); }
+  c2.closePath(); c2.fill();
+}
+
+/* =========================================================
+   5. 渲染
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const list = $('#list'), empty = $('#empty');
+
+const fmtTime = m => {
+  if(m == null || isNaN(m)) return '';
+  if(m < 60) return m + ' 分钟';
+  const h = Math.floor(m/60), r = m%60;
+  return h + ' 小时' + (r ? r + ' 分' : '');
+};
+
+function render(){
+  const shown = state.todos.filter(t =>
+    filter==='all' ? true : filter==='active' ? !t.done : t.done);
+
+  list.innerHTML = '';
+  shown.forEach(t => {
+    const li = document.createElement('li');
+    li.className = 'item' + (t.done ? ' done' : '');
+    li.dataset.id = t.id;
+    li.innerHTML =
+      '<button class="check" aria-label="完成"><svg viewBox="0 0 14 14"><path d="M1.5 7.5 5 11 12.5 2.5"/></svg></button>' +
+      '<div class="body"><div class="txt"></div>' +
+      (t.done ? '<div class="time">⏱ 用时 <b>' + (fmtTime(t.minutes) || '未记录') + '</b>' +
+        (t.doneAt ? ' · ' + new Date(t.doneAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) : '') +
+        '</div>' : '') +
+      '</div><button class="del" aria-label="删除">×</button>';
+
+    li.querySelector('.txt').textContent = t.text;   // textContent 防 XSS
+    li.querySelector('.check').onclick = e => onCheck(t.id, e.currentTarget);
+    li.querySelector('.del').onclick = () => remove(t.id);
+    li.querySelector('.txt').ondblclick = () => remove(t.id);
+    list.appendChild(li);
+  });
+
+  const isEmpty = shown.length === 0;
+  empty.style.display = isEmpty ? 'block' : 'none';
+  if(isEmpty){
+    $('#emptyText').textContent =
+      filter==='done' ? '还没有完成的任务' :
+      filter==='active' ? '全部搞定，休息一下 ☕' : '还没有任务，从上面添加一个吧';
+    empty.querySelector('.e').textContent = filter==='active' ? '🌟' : '🎈';
+    // 空列表且有历史备份 → 提供一键恢复
+    $('#restoreBtn').style.display = (state.todos.length===0 && !state.wipedAt) ? 'inline-block' : 'none';
+  }
+
+  const done = state.todos.filter(t=>t.done).length;
+  const pct = state.todos.length ? Math.round(done/state.todos.length*100) : 0;
+  $('#progress').style.width = pct + '%';
+  $('#count').innerHTML = '<b>' + done + '</b> / ' + state.todos.length + ' 已完成';
+  const mins = state.todos.filter(t=>t.done && t.minutes).reduce((s,t)=>s+t.minutes, 0);
+  $('#totalTime').textContent = mins ? '⏱ 累计 ' + fmtTime(mins) : '';
+  persist();
+}
+
+/* =========================================================
+   6. 操作
+   ========================================================= */
+function add(text){
+  state.todos.push({id: Date.now() + Math.random(), text, done:false, minutes:null, doneAt:null});
+}
+
+/* —— 完成：先弹窗记录用时，确认后再撒花 —— */
+let pending = null;   // {id, el}
+function onCheck(id, el){
+  const t = state.todos.find(x=>x.id===id);
+  if(!t) return;
+  if(t.done){                                   // 已完成的 → 直接取消
+    t.done = false; t.doneAt = null;
+    SFX.undo(); render(); return;
+  }
+  pending = {id, el};
+  $('#mTask').textContent = t.text;
+  $('#mMin').value = t.minutes || '';
+  document.querySelectorAll('#chips button').forEach(b =>
+    b.classList.toggle('on', Number(b.dataset.m) === t.minutes));
+  $('#modal').classList.add('on');
+  setTimeout(()=>$('#mMin').focus(), 220);
+}
+function confirmDone(minutes){
+  if(!pending) return;
+  const t = state.todos.find(x=>x.id===pending.id);
+  if(t){
+    t.done = true;
+    t.minutes = (minutes === '' || minutes == null || isNaN(minutes)) ? null : Math.max(0, Number(minutes));
+    t.doneAt = Date.now();
+  }
+  const r = pending.el.getBoundingClientRect();
+  burst(r.left + r.width/2, r.top + r.height/2);
+  SFX.complete();
+  $('#modal').classList.remove('on');
+  pending = null;
+  render();
+}
+document.querySelectorAll('#chips button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('#chips button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    $('#mMin').value = b.dataset.m;
+    SFX.tick();
+  };
+});
+$('#mMin').addEventListener('input', () => {
+  document.querySelectorAll('#chips button').forEach(x=>x.classList.remove('on'));
+});
+$('#mOk').onclick = () => confirmDone($('#mMin').value);
+$('#mSkip').onclick = () => confirmDone(null);
+$('#modal').addEventListener('click', e => { if(e.target === e.currentTarget) confirmDone($('#mMin').value); });
+$('#mMin').addEventListener('keydown', e => { if(e.key === 'Enter') confirmDone($('#mMin').value); });
+addEventListener('keydown', e => {
+  if(e.key === 'Escape' && pending) confirmDone($('#mMin').value);
+});
+
+function remove(id){
+  const li = list.querySelector('[data-id="'+id+'"]');
+  const kill = () => { state.todos = state.todos.filter(x=>x.id!==id); render(); };
+  if(li){ li.classList.add('out'); SFX.del(); setTimeout(kill, 300); } else kill();
+}
+
+const input = $('#input');
+input.addEventListener('keydown', e => {
+  if(e.key === 'Enter'){
+    const v = input.value.trim();
+    if(!v){ input.animate([{transform:'translateX(0)'},{transform:'translateX(-5px)'},{transform:'translateX(5px)'},{transform:'translateX(0)'}],{duration:220}); return; }
+    add(v); input.value = '';
+    SFX.add();
+    if(filter === 'done'){ filter = 'all'; syncFilters(); }
+    render();
+  }
+});
+if(new URLSearchParams(location.search).get('new')) setTimeout(()=>input.focus(), 300);
+
+/* 过滤器 */
+function syncFilters(){
+  document.querySelectorAll('.filters button').forEach(b =>
+    b.classList.toggle('on', b.dataset.f === filter));
+}
+document.querySelectorAll('.filters button').forEach(b =>
+  b.onclick = () => { filter = b.dataset.f; syncFilters(); SFX.tick(); render(); });
+
+/* 工具栏 */
+$('#clearBtn').onclick = () => {
+  if(!state.todos.some(t=>t.done)) return;
+  state.todos = state.todos.filter(t=>!t.done); SFX.tick(); render();
+};
+$('#wipeBtn').onclick = () => {
+  if(!state.todos.length) return;
+  if(confirm('确定清空所有任务？（会自动留一份今日备份）')){
+    document.querySelectorAll('.item').forEach((el,i)=>{
+      el.style.animationDelay = (i*35)+'ms'; el.classList.add('out');
+    });
+    SFX.del();
+    setTimeout(()=>{ state.todos = []; state.wipedAt = Date.now(); localStorage.setItem(LS_WIPE, Date.now()); render(); }, state.todos.length*35 + 260);
+  }
+};
+$('#soundBtn').onclick = function(){
+  soundOn = !soundOn;
+  localStorage.setItem('mini-todo-sound', soundOn ? '1' : '0');
+  this.textContent = soundOn ? '🔊' : '🔇';
+  this.classList.toggle('off', !soundOn);
+  if(soundOn) SFX.tick();
+};
+
+/* 备份 / 恢复 */
+$('#exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify({
+    app:'mini-todo', version:1, exportedAt:new Date().toISOString(), todos:state.todos
+  }, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '待办备份-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+  SFX.tick();
+  toast('备份文件已下载');
+};
+$('#importBtn').onclick = () => $('#fileInput').click();
+$('#fileInput').onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      const arr = Array.isArray(d) ? d : d.todos;
+      if(!Array.isArray(arr)) throw 0;
+      state.todos = arr.map(t => ({id:t.id??Date.now()+Math.random(), text:String(t.text??''), done:!!t.done, minutes:t.minutes??null, doneAt:t.doneAt??null}));
+      state.wipedAt = null;
+      localStorage.removeItem(LS_WIPE);
+      render(); SFX.complete(); toast('导入成功，共 ' + state.todos.length + ' 条');
+    }catch(err){ alert('文件格式不对，请选择本应用导出的备份文件。'); }
+    e.target.value = '';
+  };
+  r.readAsText(f);
+};
+$('#restoreBtn').onclick = async () => {
+  try{
+    const all = await idbOp(ST_BAK, 'readonly', os => os.getAll()) || [];
+    all.sort((a,b)=>a.date>b.date?1:-1);
+    const b = all[0];
+    if(!b || !b.todos.length) return toast('没有找到可用备份');
+    state.todos = b.todos; state.wipedAt = null;
+    localStorage.removeItem(LS_WIPE);
+    render(); SFX.complete();
+    toast('已恢复 ' + b.date + ' 的备份');
+  }catch(e){ toast('恢复失败'); }
+};
+
+/* Toast */
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._h2);
+  t._h2 = setTimeout(()=>t.classList.remove('on'), 2000);
+}
+
+/* 头部文案 */
+(function(){
+  const d = new Date();
+  $('#date').textContent = (d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日 · '+
+    '周日周一周二周三周四周五周六'.substr(d.getDay(),2));
+  $('#greeting').textContent = ['早上好，要元气满满呀','下午好，喝口水继续','晚上好，早点休息哦'][ d.getHours()<11 ? 0 : d.getHours()<18 ? 1 : 2 ];
+})();
+$('#soundBtn').textContent = soundOn ? '🔊' : '🔇';
+$('#soundBtn').classList.toggle('off', !soundOn);
+
+/* =========================================================
+   7. 启动 + 离线支持
+   ========================================================= */
+(async function init(){
+  await load();
+  render();
+})();
+
+if('serviceWorker' in navigator){
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* 本地 file:// 或不支持时静默失败 */ });
+  });
+}
+</script>
+</body>
+</html>

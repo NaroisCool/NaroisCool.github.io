@@ -1,0 +1,23 @@
+{
+  "name": "今日 · 极简待办",
+  "short_name": "今日待办",
+  "description": "带音效和完成特效的极简待办工具，支持记录完成用时",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAFAF8",
+  "theme_color": "#5B5BD6",
+  "categories": ["productivity", "utilities"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "新建任务", "url": "./index.html?new=1", "description": "直接打开并聚焦输入框" }
+  ]
+}
